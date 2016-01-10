@@ -3,7 +3,7 @@
 :author: Brock  
 :twitter: @brocktibert  
 
-==About this entry
+== About this entry
 
 This entry is intended to demonsrate how easy it is to use:
 
