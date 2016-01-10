@@ -1,4 +1,4 @@
-=NHL Team Rankings with Stattleship and Neo4j
+= NHL Team Rankings with Stattleship and Neo4j
 :neo4j-version: 2.3.0  
 :author: Brock  
 :twitter: @brocktibert  
