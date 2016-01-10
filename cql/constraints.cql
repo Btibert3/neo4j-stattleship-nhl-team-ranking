@@ -1,0 +1,4 @@
+// constraints
+CREATE CONSTRAINT ON (n:Team) ASSERT n.id IS UNIQUE;
+CREATE CONSTRAINT ON (n:Game) ASSERT n.id IS UNIQUE;
+
