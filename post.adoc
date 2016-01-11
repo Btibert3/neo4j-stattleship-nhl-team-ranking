@@ -1,21 +1,59 @@
-This is a title
-=============================
+= TITLE OF YOUR GRAPHGIST
+:neo4j-version: 2.3.0
+:author: YOUR NAME
+:twitter: @your_twitter_username
 
-Author: @brocktibert
+// Provide an introduction to your data modeling domain and what you are trying to accomplish
 
+// Provide a domain model image (using something like http://www.apcjones.com/arrows/# or https://www.gliffy.com/)
 
-=== About this post
+// You can run this query to get an overview of entities and how they are related:
+// MATCH (a)-[r]->(b) WHERE labels(a) <> [] AND labels(b) <> []
+// RETURN DISTINCT head(labels(a)) AS This, type(r) as To, head(labels(b)) AS That LIMIT 10
 
-Describe the post.
+image::http://i.imgur.com/5giAsjq.png[]
 
-=== Assumptions  
+// REMOVEME: A Cypher query to setup the database
+//setup
+//hide
+[source,cypher]
+----
+CREATE
+  (a:Person {name: 'Alice'}),
+  (b:Person {name: 'Bob'}),
+  (c:Person {name: 'Carrie'}),
+  (d:Person {name: 'David'}),
+  (e:Person {name: 'Emily'}),
+  (a)-[:FRIENDS_WITH]->(b),
+  (a)-[:FRIENDS_WITH]->(e),
+  (b)-[:FRIENDS_WITH]->(c),
+  (b)-[:FRIENDS_WITH]->(d)
+----
 
-Install R
+// REMOVEME: Display the whole graph:
 
+//graph
 
-=== The data model
+// REMOVEME: Describe what this query is designed to do
 
-Insert the pic image
+// REMOVEME: A Cypher query to give table output
+[source,cypher]
+----
+MATCH (a:Person {name: 'Alice'})-[:FRIENDS_WITH]-(:Person)-[:FRIENDS_WITH]-(fof:Person)
+RETURN fof.name
+----
 
-=== Import the data
+//table
 
+// REMOVEME: Describe what this query is designed to do
+
+// REMOVEME: A Cypher query to give graph visualization output
+[source,cypher]
+----
+MATCH path=(a:Person {name: 'Alice'})-[:FRIENDS_WITH]-(:Person)-[:FRIENDS_WITH]-(fof:Person)
+RETURN path
+----
+
+//graph_result
+
+// REMOVEME: Offer a conclusion
