@@ -1,0 +1,21 @@
+This is a title
+=============================
+
+Author: @brocktibert
+
+
+=== About this post
+
+Describe the post.
+
+=== Assumptions  
+
+Install R
+
+
+=== The data model
+
+Insert the pic image
+
+=== Import the data
+
