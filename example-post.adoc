@@ -1,0 +1,249 @@
+== Build Star Wars models with your Lego collection
+
+:neo4j-version: 2.3.1
+:author: Michael Girardot
+
+
+=== Summary
+Since my childhood, the countless model building with Lego bricks are fascinating me. Lego are plastic construction toys consisting of interlocking bricks that are used to construct a wide variety of models. Usually, Lego are sold as a collection of different designed pieces and an instruction book that visually describe the sequential building steps of a miniature model. 
+
+I always had a great fun using bricks to build different models that you have to imagine based on the bricks available. But this liberty to imagine new models comes with a great frustration when important pieces are missing to build it.
+
+Here I used neo4j to store a sample of the Star Wars Lego collection. Using this graph database I can predict which model can be build using the parts of the models I own. Interestingly, I can find out which parts are missing in my collection to build a new model.
+
+image::https://farm9.staticflickr.com/8181/8004120829_5ba70b396b_z.jpg"[width="640" height="427" alt="Lego starwars version French cancan...", align="center"]
+
+
+=== 1. The Lego Star Wars dataset
+I downloaded the Star Wars Lego collection from the http://brickset.com/[Brickset] website. Models from all the six Star Wars episodes correspond to 199 Lego Sets. Thanks to the brickset database we have access to the individual parts of each set. To preserve the relation between the `Sets` and the `Parts`, I created a `SetNumber` column in the Sets database with Python.
+
+//hide
+[source,python]
+----
+import pandas as pd
+sets = pd.read_csv("~/Data/brickset/starwars.sets.csv")
+parts = pd.read_csv("~/Data/brickset/starwars.parts.csv")
+
+#Create SetNumber : Number+'-'+Variant
+sets['SetNumber'] = sets.Number.map(str) + '-' + sets.Variant.map(str)
+
+#Save the csv files
+sets.to_csv("sets.csv",index_label="id")
+parts.to_csv("parts.csv", index_label="id")
+----
+
+Here are the links to the https://dl.dropboxusercontent.com/u/26234739/sets_sample.csv[`sets_sample.csv`] and https://dl.dropboxusercontent.com/u/26234739/parts_sample.csv[`parts_sample.csv`]. These files contain only 24 sets and 725 parts for demonstration purpose.
+
+
+=== 2. Database Schema
+
+I splited the `parts_sample.csv` into `category, design` and `part`. This design permits to filter out some unimportant categories such as `System: Mini Figure` that are too specific for a particular set. Since I want to retrieve the common parts of two sets regardless of the color of the parts, I separated the design of a part from the part description. 
+
+image::https://dl.dropboxusercontent.com/u/26234739/Design_neo4j.svg[]
+
+=== 3. Building the database
+
+//hide
+//setup
+//output
+[source,cypher]
+----
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+//Store the sets
+CREATE INDEX ON :Set(id);
+
+LOAD CSV WITH HEADERS FROM "https://dl.dropboxusercontent.com/u/26234739/sets_sample.csv" as csvLine
+CREATE (s:Set {id: csvLine.SetNumber, Name: csvLine.Name, Pieces: csvLine.Pieces});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//Store unique categories
+CREATE INDEX ON :Category(name);
+
+LOAD CSV WITH HEADERS FROM "https://dl.dropboxusercontent.com/u/26234739/parts_sample.csv" AS csvLine
+MERGE (c:Category {name: csvLine.Category});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//Store the Design nodes
+CREATE CONSTRAINT ON (d:Design) ASSERT d.id IS UNIQUE;
+
+LOAD CSV WITH HEADERS FROM "https://dl.dropboxusercontent.com/u/26234739/parts_sample.csv" AS csvLine
+MERGE (d:Design {id: csvLine.DesignID, name: csvLine.PartName});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//Store the Parts nodes
+CREATE INDEX ON :Part(id);
+
+LOAD CSV WITH HEADERS FROM "https://dl.dropboxusercontent.com/u/26234739/parts_sample.csv" AS csvLine
+MERGE (p:Part {id: csvLine.PartID, Colour: csvLine.Colour});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//Setup the relationships
+DROP INDEX ON :Set(id);
+DROP INDEX ON :Part(id);
+CREATE CONSTRAINT ON (s:Set) ASSERT s.id IS UNIQUE;
+CREATE CONSTRAINT ON (p:Part) ASSERT p.id IS UNIQUE;
+
+//Each set CONTAINS specific parts
+USING PERIODIC COMMIT 500
+LOAD CSV WITH HEADERS FROM "https://dl.dropboxusercontent.com/u/26234739/parts_sample.csv" AS csvLine
+MATCH 	(s:Set {id: csvLine.SetNumber}), 
+		(p:Part {id: csvLine.PartID})
+MERGE 	(s)-[:CONTAINS {Quantity: csvLine.Quantity}]->(p);
+
+//Create the specific PART_TYPE relationship
+USING PERIODIC COMMIT 500
+LOAD CSV WITH HEADERS FROM "https://dl.dropboxusercontent.com/u/26234739/parts_sample.csv" AS csvLine
+MATCH 	(p:Part {id: csvLine.PartID}), 
+		(d:Design {id: csvLine.DesignID})
+MERGE 	(d)-[:PART_TYPE]->(p);
+
+//Create the DESIGN_TYPE relationship
+USING PERIODIC COMMIT 500
+LOAD CSV WITH HEADERS FROM "https://dl.dropboxusercontent.com/u/26234739/parts_sample.csv" AS csvLine
+MATCH 	(c:Category {name: csvLine.Category}), 
+		(d:Design {id: csvLine.DesignID})
+MERGE 	(c)-[:DESIGN_TYPE]->(d);
+
+----
+
+=== 4. Explore the Lego Star Wars graph database
+
+_What are the common parts between a Speeder Bike and an A-Wing Starfighter ?_
+
+image::http://vignette2.wikia.nocookie.net/lego/images/e/e6/30005_Imperial_Speeder_Bike.jpg/revision/latest?cb=20141011121402&path-prefix=fr[title="SW 30005 Imperial Speeder Bike"]
+image::http://vignette1.wikia.nocookie.net/lego/images/d/d6/30272_A-wing_Starfighter.png/revision/latest?cb=20150125172559&path-prefix=fr[title="SW 30272 A-Wing Starfighter"]
+
+[source,cypher]
+----
+MATCH 	(s1:Set {id: "30005-1"})-[r1]->(p1)<-[r2]-(d:Design)
+MATCH 	(s2:Set {id: "30272-1"})-[r4]->(p2)<-[r5]-(d)
+RETURN *
+----
+
+//graph_result
+
+[source,cypher]
+----
+MATCH 	(s1:Set {id: "30005-1"})-[r1]->()<-[r2]-(d:Design)
+MATCH 	(s2:Set {id: "30272-1"})-[r3]->()<-[r4]-(d)
+
+WITH 	DISTINCT d, 
+		SUM(toInt(r1.Quantity)) AS SPEEDER_BIKE_QUANTITY, 
+		SUM(toInt(r3.Quantity)) AS STARFIGHTER_QUANTITY
+
+RETURN 	SPEEDER_BIKE_QUANTITY, 
+		STARFIGHTER_QUANTITY, 
+		d.name AS NAME, 
+		d.id AS ID
+
+----
+
+//table
+
+=== 5. Predicting which model to build from my Lego collection
+
+I am the lucky owner of the Millennium Falcon (id: 7965-1).
+
+image::http://images.brickset.com/sets/images/7965-1.jpg[]
+
+_Which Lego Star Wars model can I build with the parts I own ?_
+
+[source,cypher]
+----
+//Find common parts of each set with 7965-1
+MATCH 	(s1:Set {id: "7965-1"})-[r1]->()<--(d:Design)
+MATCH 	(s2:Set)-[r2]->()<--(d)
+
+//Exclude the 7965-1 set from the result and the MiniFigs
+WHERE 	NOT s1 = s2 AND NOT (:Category {name: "System: Mini Figure"})-->(d)
+
+WITH 	DISTINCT s2, r2, d
+
+WITH 	s2.id AS SET_ID, 
+		s2.Name AS NAME, 
+		SUM(toInt(r2.Quantity)) AS COMMON_PARTS, 
+		toInt(s2.Pieces) AS NUM_PIECES
+
+RETURN 	SET_ID, 
+		NAME, 
+		COMMON_PARTS, 
+		NUM_PIECES, 
+		ROUND(toFloat(COMMON_PARTS)/toFloat(NUM_PIECES) *100) AS PERCENT
+
+ORDER BY PERCENT DESC
+LIMIT 10
+----
+
+//table
+
+This table shows, for each set, the number of parts that we can find into the Millenium Falcon set, regardless of the color of the parts. Interestingly, some sets are up to 69 % complete with only these available parts.
+
+=== 6. Finding the missing pieces to complete a model.
+
+_Which pieces should I order to build an A-Wing Starfighter ?_
+
+To answer this, we need to count the number of parts of the A-Wing Starfighter (id: 30272-1) that are not present in my collection (Millenium Falcon id: 7965-1) and also the number of extra pieces from my collection that are necessary to complete the model.
+
+[source,cypher]
+----
+//Find pieces present in the collection in low quantity
+MATCH 	(s1:Set {id: "30272-1"})-[r1]->()<-[r2]-(d:Design)
+MATCH 	(d)-[r3]->()<-[r4]-(s2: Set {id: "7965-1"})
+
+//Exclude the minifigs
+WHERE 	NOT (:Category {name: "System: Mini Figure"})-->(d)
+
+//Compute the difference between the number of pieces needed and present in the collection:
+//The parts may have different colors but the same design. Thus multiple paths may be found
+// between a set and the design node. Since we use 2 MATCHes, the number of row returned will
+// be multiplied by the number of path from both matches. To find the correct quantities of
+// parts, we need to divide the sum of quantities by this multiplicative factor.
+WITH 	DISTINCT d.id AS PIECES,
+		d.name AS NAME,  
+		SUM(toInt(r1.Quantity)) AS NEEDED_QUANTITY, 
+		SUM(toInt(r4.Quantity)) AS AVAILABLE_QUANTITY, 
+		size((s2)--()--(d)) AS MULT_FACT_NEED_QTY, 
+		size((s1)--()--(d)) AS MULT_FACT_AVAIL_QTY
+
+WITH 	PIECES, 
+		NAME,  
+		NEEDED_QUANTITY/MULT_FACT_NEED_QTY AS NEEDED_QUANTITY, 
+		AVAILABLE_QUANTITY/MULT_FACT_AVAIL_QTY AS AVAILABLE_QUANTITY, 
+		(AVAILABLE_QUANTITY/MULT_FACT_AVAIL_QTY - NEEDED_QUANTITY/MULT_FACT_NEED_QTY) AS MISSING_QUANTITY
+
+//Select only the pieces in low quantity compared to the amount needed
+WHERE 	MISSING_QUANTITY < 0
+
+RETURN 	PIECES, NAME, abs(MISSING_QUANTITY) AS NUMBER
+ORDER 	BY PIECES
+
+UNION ALL
+
+//Find unique pieces present in the A-Wing Starfighter
+MATCH 	(s1:Set {id: "30272-1"})-[r1]->()<-[r2]-(d:Design),
+		(s2: Set {id: "7965-1"})
+
+//Exclude the minifigs and the parts from the collection
+WHERE 	NOT (:Category {name: "System: Mini Figure"})-->(d) AND NOT(s2)-->()<--(d)
+
+WITH 	DISTINCT d.id AS PIECES, 
+		d.name AS NAME, 
+		SUM(toInt(r1.Quantity)) AS NEEDED_QUANTITY, 
+		SUM(toInt(r1.Quantity)) AS NUMBER
+
+RETURN 	PIECES, 
+		NAME, 
+		NUMBER
+
+ORDER 	BY PIECES
+----
+
+//table
+
+=== Conclusion
+Managing my Lego collection has never been that easy. Most of the time you have to dig into big boxes full of unordered Lego parts to find each pieces to build a model. And very often you are not able to find these last pieces to build the model you choosed. Using the solution described in this graph gist, you can:
+
+ * Know instantly which parts of your model are present in your collection, saving you the time to sort out your collection.
+ * Find the more economical model to build if you need to buy missing parts.
+
+This solution could be used for a recommendation engine for parts to buy on a Lego retail website.
