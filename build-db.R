@@ -57,7 +57,7 @@ games <- parse_stattle(games_ss, "games") %>%
   filter(interval_type=='regularseason') %>% 
   select(id, 
          started_at,
-         ended_at,
+         timestamp,
          scoreline, 
          home_team_id, 
          away_team_id, 
@@ -72,7 +72,7 @@ games <- parse_stattle(games_ss, "games") %>%
 
 ## parse out the teams from the games API -- need to do that just once
 teams <- parse_stattle(games_ss, "home_teams") %>% 
-  unique(.) %>% 
+  unique %>% 
   select(id, 
          location, 
          name, 
