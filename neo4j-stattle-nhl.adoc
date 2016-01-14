@@ -194,7 +194,7 @@ MERGE (g:Game {id:row.id,
 and finally, join the teams and games
 
 
-
+//hide
 //setup
 //output
 [source,cypher]
@@ -223,3 +223,24 @@ MERGE (h) -[:HOME_TEAM {goals:toInt(row.home_team_score),
 
 
 === 6. Explore
+
+Let's look at how things are related.
+
+[source,cypher]
+----
+MATCH (a)-[r]->(b)
+WHERE labels(a)<>[] AND labels(b)<>[]
+RETURN DISTINCT head(labels(a)) AS This, type(r) AS To, head(labels(b)) AS That
+----
+
+//table
+
+And the count of nodes by their label
+
+[source,cypher]
+----
+MATCH (n)
+RETURN labels(n) AS `Node Type`, count(*) AS total
+----
+
+//table
