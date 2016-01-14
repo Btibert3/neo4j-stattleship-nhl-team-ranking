@@ -20,6 +20,9 @@ USING PERIODIC COMMIT 10000
 LOAD CSV WITH HEADERS FROM "https://docs.google.com/spreadsheets/d/1N1ojcEY9syOvUI2EQ8ked54NGJB8Xmo9V-Rb5j0b7ZM/pub?gid=1724989853&single=true&output=csv" AS row
 MERGE (t:Team {id:row.id, nickname:row.nickname, slug:row.slug});
 
+USING PERIODIC COMMIT 10000
+LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/Btibert3/neo4j-graphgist-2016/master/data/teams.csv" AS row
+MERGE (t:Team {id:row.id, nickname:row.nickname, slug:row.slug});
 
 // import the games
 USING PERIODIC COMMIT 10000

@@ -49,7 +49,9 @@ parse_stattle <- function(stattle_list, entry) {
 ###############################################################################
 
 ## get all of the completed games for the 2015-16 season
-games_ss <- ss_get_result(ep="games", query=list(status="ended"), walk = TRUE)
+games_ss <- ss_get_result(ep="games", 
+                          query=list(status="ended"), 
+                          walk = TRUE)
 
 
 ## parse out the games and keep the columns we want (regular season only)
@@ -57,7 +59,6 @@ games <- parse_stattle(games_ss, "games") %>%
   filter(interval_type=='regularseason') %>% 
   select(id, 
          started_at,
-         timestamp,
          scoreline, 
          home_team_id, 
          away_team_id, 
@@ -79,13 +80,26 @@ teams <- parse_stattle(games_ss, "home_teams") %>%
          nickname, 
          slug)  
 
+## extract dateparts from started date
+games <- transform(games, 
+                   start_date = strptime(started_at, "%Y-%m-%dT%H:%M:%S"))
+games <- transform(games,
+                   year = year(start_date),
+                   month = month(start_date),
+                   day = day(start_date))
+
+## make the games dataset
+games$started_at <- NULL
+games$start_date <- NULL
+
+
 ## write the datafiles as csvs for neo import and future use
 # save.image(file="data/session.Rdata")
 write.table(games, file="data/games.csv", sep=",", row.names=F, na="")
 write.table(teams, file="data/teams.csv", sep=",", row.names=F, na="")
 
 ###############################################################################
-## Setup
+## Local dev below, not for neo4j contest
 ###############################################################################
 
 ## connect to a running neo4j server , most likely this is running locally
