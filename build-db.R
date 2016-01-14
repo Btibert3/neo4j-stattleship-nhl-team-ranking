@@ -6,13 +6,13 @@
 ## factors are the devil
 options(stringsAsFactors = FALSE)
 
-## un-comment below to install the packages if necessary
-# install.packages("devtools")
-# devtools::install_github("stattleship/stattleship-r")
-# install.packages("dplyr")
-# install.packages("lubridate")
-# install.packages("stringr")
-# devtools::install_github("nicolewhite/RNeo4j")
+# un-comment below to install the packages if necessary
+install.packages("devtools")
+devtools::install_github("stattleship/stattleship-r")
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("stringr")
+devtools::install_github("nicolewhite/RNeo4j")
 
 ## packages -- if errors, see above
 library(stattleshipR)
