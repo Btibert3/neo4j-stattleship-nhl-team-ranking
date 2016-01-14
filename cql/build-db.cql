@@ -24,9 +24,22 @@ USING PERIODIC COMMIT 10000
 LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/Btibert3/neo4j-graphgist-2016/master/data/teams.csv" AS row
 MERGE (t:Team {id:row.id, nickname:row.nickname, slug:row.slug});
 
+
+//////////////////////////////// games
+
 // import the games
 USING PERIODIC COMMIT 10000
 LOAD CSV WITH HEADERS FROM "https://docs.google.com/spreadsheets/d/1ZYBARl3UL6DL5OIQX43hcize7xyMf2HuzmskU10Hy2U/pub?gid=211648136&single=true&output=csv" AS row
+WITH row
+MERGE (g:Game {id:row.id, 
+	           duration:toInt(row.duration), 
+	           attendance:toInt(row.attendance), 
+	           score_diff:toInt(row.score_differential), 
+	           scoreline:row.scoreline} );
+
+
+USING PERIODIC COMMIT 10000
+LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/Btibert3/neo4j-graphgist-2016/master/data/games.csv" AS row
 WITH row
 MERGE (g:Game {id:row.id, 
 	           duration:toInt(row.duration), 
