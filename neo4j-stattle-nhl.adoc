@@ -194,7 +194,7 @@ MERGE (g:Game {id:row.id,
 and finally, join the teams and games
 
 
-//hide
+
 //setup
 //output
 [source,cypher]
