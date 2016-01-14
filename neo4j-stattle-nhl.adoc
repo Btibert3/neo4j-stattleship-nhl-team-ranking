@@ -10,12 +10,19 @@ This post will collect data from Stattleship's sports API using their R package 
 Neo4j in order to rank each NHL team based on their performance through January13 of the 2015-16 NHL season.
 
 
-=== Here is an example image below of the data model, see the parameters
+== The Data Model
 
-image::https://farm9.staticflickr.com/8181/8004120829_5ba70b396b_z.jpg"[width="640" height="427" alt="Lego starwars version French cancan...", align="center"]
+The image below represents the data model that I am going to use for this post.
 
 
-=== 1. Install the packages
+image::https://raw.githubusercontent.com/Btibert3/neo4j-graphgist-2016/master/stattle-neo-team-datamodel.png[width="400" height="375" alt="NHL Games data model", align="center"]
+
+In short, there are two types of nodes, `Game` and `Team` whereby two teams compete in a game.  There are also 2 types of relationships, which indicate whether or not the team was the `HOME_TEAM` or the `AWAY_TEAM`.  These relationships have properties that indicate how many goals were scored and if the `outcome`, which indicates whether or not that particular team won the game.
+
+
+=== 1. Install the R package
+
+Assuming that you have R installed, use the commands below to install the required packages for this post.
 
 //hide
 [source,r]
@@ -23,7 +30,7 @@ image::https://farm9.staticflickr.com/8181/8004120829_5ba70b396b_z.jpg"[width="6
 ## factors are the devil
 options(stringsAsFactors = FALSE)
 
-# un-comment below to install the packages if necessary
+# install the required packages in R
 install.packages("devtools")
 devtools::install_github("stattleship/stattleship-r")
 install.packages("dplyr")
@@ -35,6 +42,8 @@ devtools::install_github("nicolewhite/RNeo4j")
 
 === 2. Setup the R environment
 
+The code below will load the required packages, set your API token, and create a helper function to parse out the data.
+
 //hide
 [source,r]
 ----
@@ -45,9 +54,8 @@ library(lubridate)
 library(stringr)
 library(RNeo4j)
 
-## set the token from an environment variable
-set_token(Sys.getenv("STATTLE_TOKEN"))
-# set_token("yourtokenhere")
+## set the token - get yours at stattleship.com
+set_token("yourtokenhere")
 
 ## parse out entries from ss_get_result when walk=T and length > 1
 parse_stattle <- function(stattle_list, entry) {
@@ -58,7 +66,9 @@ parse_stattle <- function(stattle_list, entry) {
 ----
 
 
-=== 3 Get the Data with R
+=== 3. Get the Data with R
+
+The code below is all you need to get the 2015-16 games.
 
 //hide
 [source,r]
@@ -67,8 +77,19 @@ parse_stattle <- function(stattle_list, entry) {
 games_ss <- ss_get_result(ep="games",
                           query=list(status="ended"),
                           walk = TRUE)
+----
+
+One note:  The API call is only pulling completed regular season games.
 
 
+=== 4. Parse out the data into datasets for Neo4j
+
+Below, the code parses out what we need from the API call.
+
+
+//hide
+[source,r]
+----
 ## parse out the games and keep the columns we want (regular season only)
 games <- parse_stattle(games_ss, "games") %>%
   filter(interval_type=='regularseason') %>%
@@ -112,60 +133,65 @@ write the data to a web-accessible location
 ----
 
 
+In the end, we have a `games` and `teams` dataset that we will us to populate our database below.
 
-=== 4. Data Model
+=== 5. Populate Neo4j
 
-Below is model
-
-image::https://dl.dropboxusercontent.com/u/26234739/Design_neo4j.svg[]
-
-=== 5. Import the data
-
-Set the team constraints
+First, set the contraint on the `id` property for teams (which is returned by the API)
 
 //hide
 //setup
 //output
 [source,cypher]
 ----
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Index on teams
 CREATE CONSTRAINT ON (n:Team) ASSERT n.id IS UNIQUE;
+----
 
+And now import the teams.
+
+//hide
+//setup
+//output
+[source,cypher]
+----
 // Import the teams
 USING PERIODIC COMMIT 10000
 LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/Btibert3/neo4j-graphgist-2016/master/data/teams.csv" as row
 MERGE (t:Team {id:row.id, nickname:row.nickname, slug:row.slug});
-
 ----
 
-
-Set the game constraints ...
-
+Set the game constraints
 
 //hide
 //setup
 //output
 [source,cypher]
 ----
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Index on Games
 CREATE CONSTRAINT ON (n:Game) ASSERT n.id IS UNIQUE;
+----
 
-// Import the completed games
+
+and load the games
+
+//hide
+//setup
+//output
+[source,cypher]
+----
+// Import the games
 USING PERIODIC COMMIT 10000
 LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/Btibert3/neo4j-graphgist-2016/master/data/games.csv" as row
 MERGE (g:Game {id:row.id,
 	           duration:toInt(row.duration),
 	           attendance:toInt(row.attendance),
 	           score_diff:toInt(row.score_differential),
-	           scoreline:row.scoreline} );
-
+	           scoreline:row.scoreline,
+	           year:toInt(row.year),
+	           month:toInt(row.month),
+	           day:toInt(row.day)});
 ----
 
-Merge the teams and games
+and finally, join the teams and games
 
 
 //hide
@@ -173,7 +199,7 @@ Merge the teams and games
 //output
 [source,cypher]
 ----
-/////////////////////////////////////////////////////////////////////////////////////////////////////
+// Relate the teams and games
 USING PERIODIC COMMIT 10000
 LOAD CSV WITH HEADERS FROM "https://raw.githubusercontent.com/Btibert3/neo4j-graphgist-2016/master/data/games.csv" as row
 WITH row
@@ -193,8 +219,7 @@ MERGE (h) -[:HOME_TEAM {goals:toInt(row.home_team_score),
 	                                 WHEN row.home_team_outcome='overtime_loss' THEN 1
 	                                 ELSE 0
 	                             END}]-> (g);
-
 ----
 
 
-=== 6. Explore the data
+=== 6. Explore
